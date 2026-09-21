@@ -1,0 +1,15 @@
+# SQLite WAL & SHM temporary cache
+*.db-wal
+*.db-shm
+
+# Node.js dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

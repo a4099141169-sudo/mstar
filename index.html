@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d0a1a" />
+    <meta
+      name="description"
+      content="Mstar 傢俱糖果商城：挑好商品後直接在遊戲內密語賣家，站內不涉及任何金流。"
+    />
+    <title>Mstar 糖果商城 · 傢俱展示與上架管理系統</title>
+    <!-- 站台 Tailwind v4 樣式表 -->
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* 全螢幕背景圖片擴圖與漸層遮罩 */
+      body {
+        min-height: 100svh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #ffffffe0;
+        margin: 0;
+        background-color: #0b0818;
+        /* 擴展到全螢幕，疊加微暗毛玻璃質感，維持文字高對比度 */
+        background-image:
+          linear-gradient(rgba(11, 8, 24, 0.45), rgba(11, 8, 24, 0.70)),
+          url('assets/bg.png');
+        background-size: cover;
+        background-position: center center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+      }
+      [v-cloak] {
+        display: none !important;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(13, 10, 26, 0.6);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 61, 139, 0.3);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 61, 139, 0.6);
+      }
+      .backdrop-card {
+        background-color: rgba(18, 14, 38, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 全域 SVG 漸層與圖示定義 -->
+    <svg width="0" height="0" class="sr-only">
+      <defs>
+        <linearGradient id="candyBody" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffb3d4"></stop>
+          <stop offset="1" stop-color="#ff3d8b"></stop>
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <div id="app" v-cloak class="flex min-h-svh flex-col">
+      <!-- 頂部浮動 Toast 通知容器 -->
+      <div class="pointer-events-none fixed inset-x-0 top-3 z-100 flex flex-col items-center gap-2 px-4" role="status" aria-live="polite">
+        <transition-group
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 -translate-y-2"
+          leave-active-class="transition duration-150 ease-in"
+          leave-to-class="opacity-0 -translate-y-1"
+        >
+          <div
+            v-for="t in toasts"
+            :key="t.id"
+            :class="[
+              'pointer-events-auto max-w-lg rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-2xl backdrop-blur-md cursor-pointer',
+              t.kind === 'success' ? 'border-mint-500/60 bg-mint-500/20 text-mint-300' :
+              t.kind === 'error' ? 'border-[#ff4d6d]/60 bg-[#ff4d6d]/20 text-[#ffb3c1]' :
+              'border-candy-500/60 bg-candy-500/20 text-candy-200'
+            ]"
+            @click="dismissToast(t.id)"
+          >
+            {{ t.message }}
+          </div>
+        </transition-group>
+      </div>
+
+      <!-- 頂部導覽列 (AppHeader) -->
+      <header class="sticky top-0 z-40 border-b border-void-500/35 bg-void-900/80 backdrop-blur-lg">
+        <div class="shell flex h-16 items-center gap-3">
+          <!-- Logo & 品牌名稱 -->
+          <a href="#shop" class="flex items-center gap-2.5 shrink-0" @click.prevent="setView('shop')">
+            <span class="grid h-10 w-10 place-items-center rounded-xl bg-linear-to-br from-candy-500 to-candy-700 shadow-[0_6px_20px_-6px_rgba(255,61,139,.9)]">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="shrink-0">
+                <path d="M7.6 12 2.6 8.2v7.6z" fill="#ffc94d"></path>
+                <path d="M16.4 12l5 -3.8v7.6z" fill="#ffc94d"></path>
+                <circle cx="12" cy="12" r="5.2" fill="url(#candyBody)"></circle>
+                <circle cx="10.2" cy="10.2" r="1.5" fill="#fff" opacity="0.85"></circle>
+              </svg>
+            </span>
+            <span class="leading-none">
+              <span class="block font-display text-lg font-extrabold text-gradient">糖果商城</span>
+              <span class="block text-[10px] font-semibold tracking-wider text-white/45">MSTAR FURNITURE MARKET</span>
+            </span>
+          </a>
+
+          <!-- 主功能分頁導覽 -->
+          <nav class="hidden md:flex items-center gap-2 ml-auto">
+            <!-- 🛍️ 逛商品 -->
+            <button
+              type="button"
+              :class="['btn btn-sm transition', currentView === 'shop' ? '!border-candy-500/80 !bg-candy-500/15 !text-white' : 'btn-ghost']"
+              @click="setView('shop')"
+            >
+              🛍️ 逛商品
+            </button>
+
+            <!-- 🛒 購物車 -->
+            <button
+              type="button"
+              :class="['btn btn-sm relative transition', currentView === 'cart' ? '!border-candy-500/80 !bg-candy-500/15 !text-white' : 'btn-ghost']"
+              @click="setView('cart')"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2.5 3.5h2.2l1 3m0 0 1.7 7.4a1.6 1.6 0 0 0 1.6 1.2h7.6a1.6 1.6 0 0 0 1.6-1.2l1.6-6.2a.8.8 0 0 0-.8-1H5.7"></path>
+                <circle cx="9.5" cy="19.5" r="1.6"></circle>
+                <circle cx="16.8" cy="19.5" r="1.6"></circle>
+              </svg>
+              <span>購物車</span>
+              <span v-if="!isCartEmpty" class="grid min-w-5 place-items-center rounded-full bg-linear-to-br from-candy-500 to-candy-700 px-1 text-[11px] font-black tabular-nums text-white">
+                {{ cartTotalQuantity }}
+              </span>
+            </button>
+
+            <!-- 登入後狀態 -->
+            <template v-if="isLoggedIn">
+              <button
+                type="button"
+                :class="['btn btn-sm transition', currentView === 'admin' ? '!border-mint-500/80 !bg-mint-500/15 !text-mint-200' : 'btn-ghost text-mint-300']"
+                @click="setView('admin')"
+              >
+                ⚙️ 上架與管理
+              </button>
+
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-void-950/70 border border-void-500/40 text-xs text-white">
+                <span class="w-2 h-2 rounded-full bg-mint-400"></span>
+                <span>{{ currentUser.display_name }}</span>
+                <span class="text-[10px] text-white/40">({{ currentUser.role === 'admin' ? '管理員' : '賣家' }})</span>
+              </span>
+
+              <button type="button" class="btn btn-ghost btn-sm text-xs text-white/50 hover:text-white" @click="handleLogout">
+                登出
+              </button>
+            </template>
+
+            <!-- 未登入狀態 -->
+            <template v-else>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm text-xs !border-void-500/50 hover:!border-candy-500/60"
+                @click="showLoginModal = true"
+              >
+                👤 賣家登入
+              </button>
+            </template>
+          </nav>
+
+          <!-- 手機版選單按鈕 -->
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm md:hidden ml-auto"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path v-if="!mobileMenuOpen" d="M4 7h16M4 12h16M4 17h16"></path>
+              <path v-else d="M6 6l12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 手機版展開選單 -->
+        <div v-if="mobileMenuOpen" class="border-t border-void-500/35 bg-void-900/95 px-4 py-3 md:hidden">
+          <div class="shell flex flex-col gap-2 !px-0">
+            <button type="button" class="btn btn-ghost btn-block justify-start" @click="setView('shop')">🛍️ 逛商品</button>
+            <button type="button" class="btn btn-ghost btn-block justify-start" @click="setView('cart')">
+              🛒 購物車（{{ cartTotalQuantity }} 件）
+            </button>
+            <template v-if="isLoggedIn">
+              <button type="button" class="btn btn-ghost btn-block justify-start text-mint-300" @click="setView('admin')">
+                ⚙️ 上架與管理後台
+              </button>
+              <button type="button" class="btn btn-ghost btn-block justify-start text-[#ff9fb1]" @click="handleLogout">
+                🚪 登出 ({{ currentUser.display_name }})
+              </button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-primary btn-block justify-start" @click="showLoginModal = true; mobileMenuOpen = false">
+                👤 賣家登入
+              </button>
+            </template>
+          </div>
+        </div>
+      </header>
+
+      <!-- 主要內容區域 -->
+      <main class="flex-1 pt-5 pb-10">
+        <!-- ================================================================== -->
+        <!-- 視圖 1: 🛍️ 前台商城 (純買家選購) -->
+        <!-- ================================================================== -->
+        <div v-if="currentView === 'shop'" class="shell space-y-6">
+          <div class="panel backdrop-card p-5 space-y-4">
+            <div>
+              <h1 class="font-display text-2xl font-extrabold text-white">逛商城傢俱</h1>
+              <p class="text-xs text-white/55 mt-1">挑選喜歡的傢俱加入購物車，送出訂單後可直接在遊戲內密語賣家以糖果交易。</p>
+            </div>
+
+            <!-- 分類標籤快速切換 -->
+            <div class="flex flex-wrap gap-1.5 pt-2 border-t border-void-500/30">
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs rounded-full', selectedCategory === '全部' ? '!border-candy-500/80 !bg-candy-500/20 !text-white' : 'btn-ghost']"
+                @click="selectedCategory = '全部'"
+              >
+                🌈 全部商品
+              </button>
+              <button
+                v-for="cat in categories"
+                :key="cat.id"
+                type="button"
+                :class="['btn btn-sm text-xs rounded-full', selectedCategory === cat.name ? '!border-candy-500/80 !bg-candy-500/20 !text-white' : 'btn-ghost']"
+                @click="selectedCategory = cat.name"
+              >
+                {{ cat.icon }} {{ cat.name }}
+              </button>
+            </div>
+
+            <!-- 搜尋與賣家篩選 -->
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+              <div class="relative">
+                <input
+                  v-model="searchKeyword"
+                  type="text"
+                  class="input !pl-9"
+                  placeholder="搜尋商品名稱、賣家、款式..."
+                />
+                <span class="absolute left-3 top-2.5 text-white/40 text-sm">🔍</span>
+              </div>
+              <div>
+                <select v-model="selectedSellerFilter" class="input">
+                  <option value="">所有賣家</option>
+                  <option v-for="s in sellers" :key="s.id" :value="s.id">
+                    賣家：{{ s.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="text-right flex items-center justify-end text-xs text-white/50">
+                共找到 <span class="font-bold text-candy-200 mx-1">{{ filteredProducts.length }}</span> 件商品
+              </div>
+            </div>
+          </div>
+
+          <!-- 商品卡片列表網格 -->
+          <div v-if="loadingProducts" class="text-center py-16">
+            <p class="text-white/60">商品載入中…</p>
+          </div>
+
+          <div v-else-if="filteredProducts.length === 0" class="panel backdrop-card p-12 text-center space-y-3">
+            <span class="text-4xl">📦</span>
+            <h3 class="text-lg font-bold">沒有找到符合條件的商品</h3>
+            <p class="text-xs text-white/50">請嘗試更換分類標籤或清除關鍵字搜尋！</p>
+          </div>
+
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div
+              v-for="p in filteredProducts"
+              :key="p.id"
+              class="panel backdrop-card p-3.5 flex flex-col justify-between group hover:border-candy-500/50 transition duration-200"
+            >
+              <div>
+                <!-- 商品圖片 -->
+                <div class="relative w-full aspect-square rounded-xl overflow-hidden bg-void-950/60 mb-3 flex items-center justify-center">
+                  <img
+                    v-if="p.thumb_url"
+                    :src="p.thumb_url"
+                    :alt="p.title"
+                    class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    loading="lazy"
+                  />
+                  <span v-else class="text-4xl text-white/20">🪑</span>
+
+                  <div class="absolute top-2 right-2">
+                    <span v-if="p.stock > 0" class="badge badge-active text-[10px]">現貨 {{ p.stock }} 件</span>
+                    <span v-else class="badge badge-hidden text-[10px]">已售完</span>
+                  </div>
+
+                  <div class="absolute bottom-2 left-2">
+                    <span class="badge badge-gold text-[10px]">👤 {{ p.seller.display_name || p.seller.name }}</span>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-1 mb-1.5">
+                  <span v-for="c in p.categories" :key="c" class="text-[10px] px-1.5 py-0.5 rounded bg-void-950/80 text-white/60 border border-void-500/30">
+                    {{ c }}
+                  </span>
+                </div>
+
+                <h3 class="font-bold text-sm text-white line-clamp-1 hover:text-candy-200" :title="p.title">
+                  {{ p.title }}
+                </h3>
+                <p v-if="p.description" class="text-xs text-white/45 line-clamp-2 mt-1">{{ p.description }}</p>
+
+                <!-- 款式選擇 -->
+                <div v-if="p.variants && p.variants.length > 0" class="mt-2.5 pt-2 border-t border-void-500/20">
+                  <p class="text-[11px] text-white/50 mb-1">選擇款式：</p>
+                  <div class="flex flex-wrap gap-1">
+                    <button
+                      v-for="v in p.variants"
+                      :key="v.id"
+                      type="button"
+                      class="text-[11px] px-2 py-0.5 rounded-lg border border-void-500/40 bg-void-950/40 hover:border-candy-500/60 transition"
+                      @click="addToCart(p, v)"
+                    >
+                      {{ v.name }} <span class="text-candy-300 font-mono">({{ v.stock }})</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 價格與加入購物車 -->
+              <div class="mt-4 pt-3 border-t border-void-500/30 flex items-center justify-between">
+                <div class="flex items-center gap-1">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="shrink-0">
+                    <path d="M7.6 12 2.6 8.2v7.6z" fill="#ffc94d"></path>
+                    <path d="M16.4 12l5 -3.8v7.6z" fill="#ffc94d"></path>
+                    <circle cx="12" cy="12" r="5.2" fill="url(#candyBody)"></circle>
+                    <circle cx="10.2" cy="10.2" r="1.5" fill="#fff" opacity="0.85"></circle>
+                  </svg>
+                  <span class="font-display font-extrabold text-base text-candy-200">{{ formatNumber(p.price_candy) }}</span>
+                  <span class="text-[11px] text-white/50">顆糖果</span>
+                </div>
+
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm !px-3"
+                  :disabled="p.stock <= 0"
+                  @click="addToCart(p)"
+                >
+                  ＋ 加入購物車
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- 視圖 2: 🛒 購物車結帳頁面 (Cart View) -->
+        <!-- ================================================================== -->
+        <div v-if="currentView === 'cart'" class="shell space-y-5">
+          <nav class="text-xs text-white/45">
+            <a href="#shop" class="link hover:text-white" @click.prevent="setView('shop')">商城首頁</a>
+            <span class="mx-1.5">/</span>
+            <span class="text-white/70">購物車</span>
+          </nav>
+
+          <header class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 class="font-display text-2xl font-bold">購物車</h1>
+              <p class="text-sm text-white/55">
+                <template v-if="isCartEmpty">還沒有東西，先去逛逛吧。</template>
+                <template v-else>{{ cartCount }} 個品項 · 共 {{ cartTotalQuantity }} 件 · 來自 {{ cartSellerCount }} 位賣家</template>
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <button v-if="!isCartEmpty" type="button" class="btn btn-ghost btn-sm" @click="clearCart">
+                清空購物車
+              </button>
+            </div>
+          </header>
+
+          <div v-if="isCartEmpty" class="panel backdrop-card flex flex-col items-center gap-2 px-6 py-14 text-center">
+            <span class="text-4xl">🛒</span>
+            <h3 class="text-base font-bold">購物車是空的</h3>
+            <p class="max-w-md text-sm text-white/55">
+              在商品上按「加入購物車」，同一位賣家的商品送出後會自動拆成一張獨立訂單。
+            </p>
+            <div class="mt-3">
+              <button type="button" class="btn btn-primary" @click="setView('shop')">去逛商品</button>
+            </div>
+          </div>
+
+          <div v-else class="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+            <!-- 左欄：依賣家分組列表 -->
+            <div class="space-y-3">
+              <section v-for="grp in cartGroups" :key="grp.sellerId" class="panel backdrop-card p-3.5">
+                <header class="flex flex-wrap items-start justify-between gap-2 pb-3">
+                  <div class="min-w-0 space-y-1">
+                    <div class="flex items-center gap-2">
+                      <span class="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-linear-to-br from-candy-400 to-candy-700 text-xs font-black text-white">
+                        {{ grp.sellerName.slice(0, 1).toUpperCase() }}
+                      </span>
+                      <span class="truncate font-bold text-white">
+                        {{ grp.sellerName }}
+                      </span>
+                      <span class="badge badge-hidden">{{ grp.items.length }} 項</span>
+                    </div>
+                    <p class="text-[11px] text-white/40">送出後這一組會是獨立的一張訂單</p>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" @click="removeCartSellerGroup(grp.sellerId, grp.sellerName)">
+                    移除這組
+                  </button>
+                </header>
+
+                <ul class="space-y-2 border-t border-void-600/45 pt-3">
+                  <li v-for="item in grp.items" :key="item.productId + '-' + (item.variantId ?? 'x')" class="flex gap-3 rounded-xl bg-void-950/40 p-2.5">
+                    <div class="h-18 w-18 shrink-0 overflow-hidden rounded-lg bg-void-950/60 flex items-center justify-center">
+                      <img v-if="item.thumbUrl" :src="item.thumbUrl" :alt="item.title" class="h-full w-full object-cover" />
+                      <span v-else class="text-xl">🪑</span>
+                    </div>
+
+                    <div class="min-w-0 flex-1 space-y-1.5">
+                      <h4 class="line-clamp-2 text-sm font-bold text-white">{{ item.title }}</h4>
+                      <p v-if="item.variantName" class="text-[11px] font-bold text-candy-300">
+                        款式：{{ item.variantName }}
+                      </p>
+
+                      <p class="flex items-center gap-1 text-xs text-white/55">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="shrink-0">
+                          <path d="M7.6 12 2.6 8.2v7.6z" fill="#ffc94d"></path>
+                          <path d="M16.4 12l5 -3.8v7.6z" fill="#ffc94d"></path>
+                          <circle cx="12" cy="12" r="5.2" fill="url(#candyBody)"></circle>
+                          <circle cx="10.2" cy="10.2" r="1.5" fill="#fff" opacity="0.85"></circle>
+                        </svg>
+                        <span class="font-bold tabular-nums text-candy-200">{{ formatNumber(item.priceCandy) }}</span>
+                        <span>× {{ item.quantity }} =</span>
+                        <span class="font-bold tabular-nums text-white/80">{{ formatNumber(item.priceCandy * item.quantity) }}</span>
+                      </p>
+
+                      <div class="flex flex-wrap items-center gap-2">
+                        <div class="inline-flex items-center rounded-lg border border-void-500/50 bg-void-950/60">
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-sm !rounded-r-none !border-0 !bg-transparent !px-2"
+                            @click="setCartQuantity(item.productId, item.variantId, item.quantity - 1, item.stockSnapshot)"
+                          >
+                            −
+                          </button>
+                          <span class="min-w-7 text-center text-sm font-bold tabular-nums text-white">{{ item.quantity }}</span>
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-sm !rounded-l-none !border-0 !bg-transparent !px-2"
+                            :disabled="item.quantity >= item.stockSnapshot"
+                            @click="setCartQuantity(item.productId, item.variantId, item.quantity + 1, item.stockSnapshot)"
+                          >
+                            ＋
+                          </button>
+                        </div>
+                        <span class="text-[11px] text-white/40">庫存 {{ item.stockSnapshot }}</span>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm ml-auto !text-[#ff9fb1]"
+                          @click="removeCartItem(item.productId, item.variantId, item.title)"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+
+                <!-- 賣家小計與聯絡方式 -->
+                <footer class="mt-3 space-y-3 border-t border-void-600/45 pt-3">
+                  <p class="flex items-center justify-end gap-1.5 text-sm">
+                    <span class="text-white/45">小計</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" class="shrink-0">
+                      <path d="M7.6 12 2.6 8.2v7.6z" fill="#ffc94d"></path>
+                      <path d="M16.4 12l5 -3.8v7.6z" fill="#ffc94d"></path>
+                      <circle cx="12" cy="12" r="5.2" fill="url(#candyBody)"></circle>
+                      <circle cx="10.2" cy="10.2" r="1.5" fill="#fff" opacity="0.85"></circle>
+                    </svg>
+                    <span class="font-display font-extrabold tabular-nums text-candy-200">{{ formatNumber(grp.totalCandy) }}</span>
+                  </p>
+
+                  <div class="rounded-xl border border-void-500/45 bg-void-950/35 p-3">
+                    <p class="mb-2 text-[11px] font-semibold text-white/55">
+                      聯絡 {{ grp.sellerName }} <span class="text-white/35">（可以先問，也可以直接送出訂單）</span>
+                    </p>
+                    <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5">
+                      <template v-for="contact in getSellerContacts(grp.seller)" :key="contact.kind">
+                        <span :class="['inline-flex w-full items-center justify-center gap-1 rounded-md border px-1.5 py-0.5 font-bold text-[11px]', contact.chipClass]">
+                          <svg v-if="contact.kind === 'game'" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" class="shrink-0">
+                            <path d="M17.5 5.5h-11A5.5 5.5 0 0 0 1 11v.6c0 3 1.2 5.4 2.6 6.4 1.2.9 2.6.4 3.3-.7l1.2-1.8h7.8l1.2 1.8c.7 1.1 2.1 1.6 3.3.7C21.8 17 23 14.6 23 11.6V11a5.5 5.5 0 0 0-5.5-5.5ZM8.9 12H7.6v1.3a.9.9 0 0 1-1.8 0V12H4.5a.9.9 0 0 1 0-1.8h1.3V8.9a.9.9 0 0 1 1.8 0v1.3h1.3a.9.9 0 0 1 0 1.8Zm5.9 1.4a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3Zm2.9-2.9a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3Z"></path>
+                          </svg>
+                          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="currentColor" class="shrink-0">
+                            <path d="M19.6 5.3A16 16 0 0 0 15.7 4l-.3.7a12 12 0 0 1 3.4 1.2 12.3 12.3 0 0 0-10.7-.4c-.4.2-.7.3-1.1.5A12 12 0 0 1 8.6 4.7L8.3 4a16 16 0 0 0-3.9 1.3C2 9.6 1.4 13.8 1.7 17.9A16 16 0 0 0 6.6 20l.6-1a10.5 10.5 0 0 1-1.9-.9l.5-.4a11.4 11.4 0 0 0 9.8 0l.5.4a10.6 10.6 0 0 1-1.9.9l.6 1a15.9 15.9 0 0 0 4.9-2.1c.4-4.7-.6-8.9-3.1-12.6ZM8.5 15.4c-1 0-1.7-.9-1.7-2s.8-2 1.7-2c1 0 1.8.9 1.8 2s-.8 2-1.8 2Zm7 0c-1 0-1.7-.9-1.7-2s.8-2 1.7-2c1 0 1.8.9 1.8 2s-.8 2-1.8 2Z"></path>
+                          </svg>
+                          {{ contact.label }}
+                        </span>
+                        <code class="min-w-0 truncate rounded-md bg-void-950/65 px-1.5 py-1 text-sm font-bold text-white/90" :title="contact.value">
+                          {{ contact.value }}
+                        </code>
+                        <button type="button" class="btn btn-mint btn-sm w-full" @click="copyContact(contact)">
+                          <svg v-if="copiedFlags[contact.value]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+                            <path d="M20 6 9 17l-5-5"></path>
+                          </svg>
+                          <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+                            <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                          </svg>
+                          <span>{{ copiedFlags[contact.value] ? '已複製' : '複製' + contact.label }}</span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </footer>
+              </section>
+            </div>
+
+            <!-- 右欄：送出訂單表單 -->
+            <form class="panel backdrop-card space-y-4 p-4 lg:sticky lg:top-20" @submit.prevent="submitOrder">
+              <h2 class="section-title !text-base">送出訂單</h2>
+
+              <dl class="space-y-1.5 rounded-xl bg-void-950/40 p-3 text-sm">
+                <div class="flex justify-between">
+                  <dt class="text-white/50">品項</dt>
+                  <dd class="font-bold tabular-nums text-white/85">{{ cartCount }} 項</dd>
+                </div>
+                <div class="flex justify-between">
+                  <dt class="text-white/50">總件數</dt>
+                  <dd class="font-bold tabular-nums text-white/85">{{ cartTotalQuantity }} 件</dd>
+                </div>
+                <div class="flex justify-between">
+                  <dt class="text-white/50">會產生幾張訂單</dt>
+                  <dd class="font-bold tabular-nums text-white/85">{{ cartSellerCount }} 張</dd>
+                </div>
+                <div class="flex items-center justify-between border-t border-void-600/45 pt-2">
+                  <dt class="font-bold text-white/70">合計</dt>
+                  <dd class="flex items-center gap-1.5">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="shrink-0">
+                      <path d="M7.6 12 2.6 8.2v7.6z" fill="#ffc94d"></path>
+                      <path d="M16.4 12l5 -3.8v7.6z" fill="#ffc94d"></path>
+                      <circle cx="12" cy="12" r="5.2" fill="url(#candyBody)"></circle>
+                      <circle cx="10.2" cy="10.2" r="1.5" fill="#fff" opacity="0.85"></circle>
+                    </svg>
+                    <span class="font-display text-xl font-extrabold tabular-nums text-candy-200">{{ formatNumber(cartTotalCandy) }}</span>
+                  </dd>
+                </div>
+              </dl>
+
+              <div class="space-y-3">
+                <div>
+                  <label for="buyer-name" class="field">你的稱呼（選填）</label>
+                  <input
+                    id="buyer-name"
+                    v-model="buyer.name"
+                    class="input"
+                    maxlength="32"
+                    placeholder="賣家看到的名字，例如 小明"
+                  />
+                </div>
+
+                <fieldset class="space-y-2 rounded-xl border border-void-500/45 bg-void-950/30 p-3">
+                  <legend class="px-1 text-[11px] font-bold text-white/60">賣家怎麼找到你？（兩者填一個就好）</legend>
+                  <div>
+                    <label for="buyer-game" class="field">遊戲 ID</label>
+                    <input id="buyer-game" v-model="buyer.gameId" class="input" maxlength="64" placeholder="遊戲裡的角色 ID" />
+                  </div>
+                  <div>
+                    <label for="buyer-dc" class="field">DC ID</label>
+                    <input id="buyer-dc" v-model="buyer.discordId" class="input" maxlength="64" placeholder="Discord 帳號，例如 mika#0001" />
+                  </div>
+                  <p v-if="!hasContact" class="text-[11px] font-semibold text-gold-300">
+                    至少要填一個，不然賣家找不到你。
+                  </p>
+                </fieldset>
+
+                <fieldset class="space-y-2 rounded-xl border border-void-500/45 bg-void-950/30 p-3">
+                  <legend class="px-1 text-[11px] font-bold text-white/60">
+                    你的遊戲角色性別 <span class="text-candy-300">（必選）</span>
+                  </legend>
+                  <div class="grid grid-cols-2 gap-2">
+                    <label
+                      v-for="g in GENDER_OPTIONS"
+                      :key="g.value"
+                      :class="[
+                        'flex cursor-pointer items-center justify-center gap-2 rounded-xl border py-2.5 font-bold transition',
+                        buyer.gender === g.value
+                          ? 'border-candy-500/70 bg-candy-500/15 text-white'
+                          : 'border-void-500/50 text-white/60 hover:border-candy-500/40 hover:text-white/85'
+                      ]"
+                    >
+                      <input type="radio" v-model="buyer.gender" :value="g.value" name="buyer-gender" class="sr-only" />
+                      <span class="text-lg">{{ g.icon }}</span>
+                      <span class="text-sm">{{ g.label }}</span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <div>
+                  <label for="buyer-note" class="field">備註（選填）</label>
+                  <textarea
+                    id="buyer-note"
+                    v-model="buyerNote"
+                    class="textarea !min-h-20"
+                    maxlength="300"
+                    placeholder="例如：晚上 8 點後上線，可以約在我家門口"
+                  ></textarea>
+                  <p class="hint">{{ buyerNote.length }} / 300</p>
+                </div>
+              </div>
+
+              <p v-if="checkoutError" class="rounded-lg bg-[#ff4d6d]/15 px-3 py-2 text-xs text-[#ff9fb1]">{{ checkoutError }}</p>
+
+              <button type="submit" class="btn btn-primary btn-block" :disabled="!canSubmitOrder">
+                {{ submittingOrder ? '送出中…' : `送出訂單（${cartSellerCount} 張）` }}
+              </button>
+
+              <p class="hint">
+                送出後會寫入資料庫並產生訂單號，若有設定 Discord Webhook 會自動發送通知。實際在遊戲中以糖果完成交易。
+              </p>
+            </form>
+          </div>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- 視圖 3: ⚙️ 後台上架與帳號管理系統 (Admin View) -->
+        <!-- ================================================================== -->
+        <div v-if="currentView === 'admin'" class="shell space-y-5">
+          <div class="panel backdrop-card p-4 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 class="font-display text-2xl font-extrabold text-white">⚙️ 商城後台管理系統</h1>
+              <p class="text-xs text-white/55 mt-1">目前登入帳號：<span class="text-mint-300 font-bold">{{ currentUser.display_name }}</span> ({{ currentUser.role === 'admin' ? '系統管理員' : '賣家' }})</p>
+            </div>
+
+            <!-- 次選單切換按鈕 -->
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs', adminTab === 'create' ? 'btn-primary' : 'btn-ghost']"
+                @click="adminTab = 'create'"
+              >
+                ➕ 商品上架
+              </button>
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs', adminTab === 'products' ? 'btn-primary' : 'btn-ghost']"
+                @click="adminTab = 'products'"
+              >
+                📋 商品管理 ({{ products.length }})
+              </button>
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs', adminTab === 'users' ? 'btn-primary' : 'btn-ghost']"
+                @click="adminTab = 'users'"
+              >
+                👥 帳號密碼管理 ({{ usersList.length }})
+              </button>
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs', adminTab === 'orders' ? 'btn-primary' : 'btn-ghost']"
+                @click="adminTab = 'orders'"
+              >
+                📑 訂單記錄 ({{ orders.length }})
+              </button>
+              <button
+                type="button"
+                :class="['btn btn-sm text-xs', adminTab === 'discord' ? 'btn-primary' : 'btn-ghost text-mint-300']"
+                @click="adminTab = 'discord'"
+              >
+                🔔 Discord 通知設定
+              </button>
+            </div>
+          </div>
+
+          <!-- 子分頁 1: ➕ 商品上架表單 -->
+          <div v-if="adminTab === 'create'" class="panel backdrop-card p-6 space-y-6">
+            <div class="border-b border-void-500/30 pb-3">
+              <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <span>➕ 上架新商品</span>
+                <span class="text-xs font-normal text-white/50">（填寫完成送出後，前台即時可供選購）</span>
+              </h2>
+            </div>
+
+            <form @submit.prevent="submitCreateProduct" class="space-y-5">
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label class="field font-bold text-white">👤 上誰的名字（賣家帳號） <span class="text-candy-300">*</span></label>
+                  <button type="button" class="text-xs text-mint-300 hover:underline" @click="adminTab = 'users'; showAddUserModal = true">
+                    ＋ 建立新賣家帳號
+                  </button>
+                </div>
+                <select v-model="newProduct.seller_id" class="input" required>
+                  <option value="" disabled>請選擇要掛在誰的名字下...</option>
+                  <option v-for="u in usersList" :key="u.id" :value="u.id">
+                    {{ u.display_name }} (帳號: {{ u.username }} ｜ 遊戲: {{ u.game_id || '無' }})
+                  </option>
+                </select>
+                <p class="text-[11px] text-white/45">您可以在這裡指定該傢俱歸屬於哪位賣家。</p>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="field font-bold text-white">🏷️ 商品名稱 <span class="text-candy-300">*</span></label>
+                <input
+                  v-model="newProduct.title"
+                  type="text"
+                  class="input"
+                  placeholder="例如：森林雙人野餐帳篷、草莓巧克力小屋..."
+                  required
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="field font-bold text-white">🖼️ 商品圖片上傳</label>
+                <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start">
+                  <div class="space-y-2">
+                    <div class="border-2 border-dashed border-void-500/50 hover:border-candy-500/60 rounded-xl p-4 text-center cursor-pointer bg-void-950/30 transition relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        @change="handleImageFileChange"
+                      />
+                      <div class="space-y-1 pointer-events-none">
+                        <span class="text-2xl">📁</span>
+                        <p class="text-xs font-semibold text-white/80">點擊選取圖片上傳</p>
+                        <p class="text-[11px] text-white/40">支援 WebP, PNG, JPG，自動存入伺服器 uploads 目錄</p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-white/50 shrink-0">或輸入網址：</span>
+                      <input
+                        v-model="newProduct.thumb_url"
+                        type="text"
+                        class="input text-xs"
+                        placeholder="http://... 或 media/... 或 uploads/..."
+                      />
+                    </div>
+                  </div>
+
+                  <div class="w-32 h-32 rounded-xl border border-void-500/40 bg-void-950/60 overflow-hidden flex items-center justify-center shrink-0">
+                    <img v-if="imagePreview || newProduct.thumb_url" :src="imagePreview || newProduct.thumb_url" class="w-full h-full object-cover" />
+                    <span v-else class="text-xs text-white/30 text-center px-2">尚未選擇圖片</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="field font-bold text-white">📁 勾選商品分類（可多選） <span class="text-candy-300">*</span></label>
+                  <button type="button" class="text-xs text-candy-300 hover:text-candy-200 underline" @click="showAddCatModal = true">
+                    ＋ 新增分類標籤
+                  </button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  <label
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    :class="[
+                      'flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition text-xs font-semibold',
+                      newProduct.categories.includes(cat.name)
+                        ? 'border-candy-500/80 bg-candy-500/15 text-white'
+                        : 'border-void-500/40 bg-void-950/30 text-white/60 hover:border-void-500/80'
+                    ]"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="cat.name"
+                      v-model="newProduct.categories"
+                      class="rounded border-void-500/60 text-candy-500 focus:ring-0"
+                    />
+                    <span>{{ cat.icon }} {{ cat.name }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <label class="field font-bold text-white">🍬 糖果售價（顆） <span class="text-candy-300">*</span></label>
+                  <input
+                    v-model.number="newProduct.price_candy"
+                    type="number"
+                    min="1"
+                    class="input"
+                    required
+                  />
+                </div>
+
+                <div class="space-y-1.5" v-if="!newProduct.has_variants">
+                  <label class="field font-bold text-white">📦 現貨庫存數量（件） <span class="text-candy-300">*</span></label>
+                  <input
+                    v-model.number="newProduct.stock"
+                    type="number"
+                    min="0"
+                    class="input"
+                    required
+                  />
+                </div>
+              </div>
+
+              <!-- 款式設定 -->
+              <div class="space-y-2 border-t border-void-500/30 pt-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="font-bold text-sm text-white">🎨 是否有多種款式？</span>
+                    <p class="text-[11px] text-white/45">例如：不同顏色（粉紅、藍）、不同大小款式</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" v-model="newProduct.has_variants" class="sr-only peer" />
+                    <div class="w-11 h-6 bg-void-950/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-candy-500"></div>
+                  </label>
+                </div>
+
+                <div v-if="newProduct.has_variants" class="space-y-2 mt-2 bg-void-950/30 p-3 rounded-xl border border-void-500/35">
+                  <div v-for="(v, index) in newProduct.variants" :key="index" class="flex items-center gap-2">
+                    <input
+                      v-model="v.name"
+                      type="text"
+                      class="input !text-xs flex-1"
+                      placeholder="款式名稱（例：米白色、大款）"
+                    />
+                    <div class="flex items-center gap-1 w-28">
+                      <span class="text-xs text-white/50">庫存:</span>
+                      <input
+                        v-model.number="v.stock"
+                        type="number"
+                        min="0"
+                        class="input !text-xs"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm text-[#ff9fb1]"
+                      @click="removeVariantRow(index)"
+                      :disabled="newProduct.variants.length <= 1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm text-xs" @click="addVariantRow">
+                    ＋ 增加一款款式
+                  </button>
+                </div>
+              </div>
+
+              <!-- 商品說明 -->
+              <div class="space-y-1.5 border-t border-void-500/30 pt-4">
+                <label class="field font-bold text-white">📝 商品說明與交易備註（選填）</label>
+                <textarea
+                  v-model="newProduct.description"
+                  class="textarea"
+                  placeholder="介紹傢俱特點、互動效果，或賣家交易時段說明..."
+                ></textarea>
+              </div>
+
+              <div class="pt-2">
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-block !py-3 font-bold"
+                  :disabled="isSubmittingProduct"
+                >
+                  {{ isSubmittingProduct ? '上架儲存中…' : '🚀 確認上架至商城資料庫' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- 子分頁 2: 📋 商品管理列表 -->
+          <div v-if="adminTab === 'products'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-bold text-white">目前資料庫中的商品 ({{ products.length }})</h2>
+              <button type="button" class="btn btn-primary btn-sm" @click="adminTab = 'create'">
+                ＋ 上架新商品
+              </button>
+            </div>
+
+            <div class="space-y-2">
+              <div
+                v-for="p in products"
+                :key="p.id"
+                class="panel backdrop-card p-3.5 flex flex-wrap items-center justify-between gap-3"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-14 h-14 rounded-lg bg-void-950/60 overflow-hidden shrink-0 flex items-center justify-center">
+                    <img v-if="p.thumb_url" :src="p.thumb_url" class="w-full h-full object-cover" />
+                    <span v-else>🪑</span>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-bold text-white truncate">{{ p.title }}</span>
+                      <span class="badge badge-gold text-[10px]">賣家: {{ p.seller.display_name || p.seller.name }}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-white/50 mt-1">
+                      <span class="text-candy-200 font-bold font-display">{{ p.price_candy }} 顆糖果</span>
+                      <span>·</span>
+                      <span>總庫存: {{ p.stock }}</span>
+                      <span>·</span>
+                      <span class="truncate">分類: {{ p.categories.join(', ') }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 ml-auto">
+                  <button type="button" class="btn btn-ghost btn-sm text-[#ff9fb1]" @click="deleteProduct(p)">
+                    刪除下架
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子分頁 3: 👥 帳號與密碼管理 (User & Password Management) -->
+          <div v-if="adminTab === 'users'" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-base font-bold text-white">賣家與管理員帳號管理 ({{ usersList.length }})</h2>
+                <p class="text-xs text-white/50">可在這裡新增、刪除賣家帳號，以及修改密碼</p>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" @click="showAddUserModal = true">
+                ＋ 建立新賣家帳號
+              </button>
+            </div>
+
+            <div class="space-y-2.5">
+              <div
+                v-for="u in usersList"
+                :key="u.id"
+                class="panel backdrop-card p-4 flex flex-wrap items-center justify-between gap-3"
+              >
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-white text-base">{{ u.display_name }}</span>
+                    <span class="font-mono text-xs px-2 py-0.5 rounded bg-void-950/80 text-white/70 border border-void-500/30">
+                      帳號：{{ u.username }}
+                    </span>
+                    <span :class="['badge text-[10px]', u.role === 'admin' ? 'badge-active' : 'badge-gold']">
+                      {{ u.role === 'admin' ? '管理員' : '賣家' }}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-3 text-xs text-white/60">
+                    <span>遊戲角色 ID：<code class="text-mint-300 font-bold">{{ u.game_id || '未填' }}</code></span>
+                    <span>Discord ID：<code class="text-[#b3baff] font-bold">{{ u.discord_id || '未填' }}</code></span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button type="button" class="btn btn-ghost btn-sm text-xs" @click="openEditUser(u)">
+                    ✏️ 編輯 / 修改密碼
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm text-xs text-[#ff9fb1]"
+                    :disabled="currentUser && currentUser.id === u.id"
+                    @click="deleteUser(u)"
+                  >
+                    刪除帳號
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子分頁 4: 📑 訂單記錄追蹤 -->
+          <div v-if="adminTab === 'orders'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-bold text-white">買家訂單資料庫記錄 ({{ orders.length }})</h2>
+              <button type="button" class="btn btn-ghost btn-sm" @click="loadOrders">
+                🔄 重新整理
+              </button>
+            </div>
+
+            <div v-if="orders.length === 0" class="panel backdrop-card p-10 text-center">
+              <p class="text-white/50">目前尚未有任何訂單，您可以在前台購物車送出訂單進行測試！</p>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="o in orders"
+                :key="o.id"
+                class="panel backdrop-card p-4 space-y-3"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-void-500/30 pb-2.5">
+                  <div class="flex items-center gap-2">
+                    <span
+                      :class="[
+                        'badge text-xs',
+                        o.status === 'completed' ? 'badge-active' :
+                        o.status === 'cancelled' ? 'badge-hidden' :
+                        'badge-gold'
+                      ]"
+                    >
+                      {{ o.status === 'completed' ? '已完成' : o.status === 'cancelled' ? '已取消' : '等賣家處理' }}
+                    </span>
+                    <span class="font-mono font-bold text-candy-200 text-sm">{{ o.order_no }}</span>
+                  </div>
+                  <span class="text-xs text-white/40">{{ formatDateTime(o.created_at) }}</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p class="text-white/50 font-bold mb-1">👤 買家資料</p>
+                    <p class="text-white">稱呼：{{ o.buyer_name || '未填' }} ｜ 性別：{{ o.buyer_gender === 'male' ? '男角 ♂' : o.buyer_gender === 'female' ? '女角 ♀' : '未填' }}</p>
+                    <p class="text-white">遊戲 ID：<code class="text-mint-300 font-bold">{{ o.buyer_game_id || '未填' }}</code></p>
+                    <p class="text-white">Discord：<code class="text-[#b3baff] font-bold">{{ o.buyer_discord_id || '未填' }}</code></p>
+                    <p v-if="o.buyer_note" class="text-white/70 mt-1">備註：{{ o.buyer_note }}</p>
+                  </div>
+                  <div>
+                    <p class="text-white/50 font-bold mb-1">🏪 負責賣家</p>
+                    <p class="text-white">{{ o.seller_name }}</p>
+                    <p class="text-white/50 font-bold mt-2 mb-1">📦 購買明細（共 {{ o.total_quantity }} 件 · {{ o.total_candy }} 顆糖果）</p>
+                    <ul class="space-y-0.5">
+                      <li v-for="(it, i) in o.items" :key="i" class="text-white/80">
+                        {{ i + 1 }}. {{ it.product_title }} {{ it.variant_name ? `(${it.variant_name})` : '' }} x{{ it.quantity }} ＝ {{ it.subtotal_candy }} 顆
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-void-500/30 pt-2.5">
+                  <button type="button" class="btn btn-mint btn-sm text-xs" @click="copySingleOrder(o)">
+                    📋 複製發送文字
+                  </button>
+                  <button
+                    v-if="o.status !== 'completed'"
+                    type="button"
+                    class="btn btn-primary btn-sm text-xs"
+                    @click="updateOrderStatus(o, 'completed')"
+                  >
+                    ✓ 標記已完成
+                  </button>
+                  <button
+                    v-if="o.status !== 'cancelled'"
+                    type="button"
+                    class="btn btn-ghost btn-sm text-xs text-[#ff9fb1]"
+                    @click="updateOrderStatus(o, 'cancelled')"
+                  >
+                    ✕ 取消訂單
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子分頁 5: 🔔 Discord 通知設定 -->
+          <div v-if="adminTab === 'discord'" class="panel backdrop-card p-6 space-y-5">
+            <div class="border-b border-void-500/30 pb-3">
+              <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <span>🔔 Discord Webhook 新訂單即時通知</span>
+              </h2>
+              <p class="text-xs text-white/50 mt-1">設定 Discord Webhook 後，只要買家在購物車下單，您的 Discord 頻道就會立刻響起通知並收到精美訂單卡片！</p>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="field font-bold text-white">Discord Webhook 網址 (URL)</label>
+                <input
+                  v-model="discordWebhookUrl"
+                  type="url"
+                  class="input font-mono text-xs"
+                  placeholder="https://discord.com/api/webhooks/..."
+                />
+              </div>
+
+              <div class="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  :disabled="isSavingDiscord"
+                  @click="saveDiscordWebhook"
+                >
+                  {{ isSavingDiscord ? '儲存中…' : '💾 儲存 Webhook 設定' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm text-mint-300 !border-mint-500/40"
+                  :disabled="isTestingDiscord || !discordWebhookUrl"
+                  @click="testDiscordWebhook"
+                >
+                  {{ isTestingDiscord ? '發送中…' : '🔔 測試發送 Discord 通知' }}
+                </button>
+              </div>
+
+              <!-- Discord Webhook 設定教學 -->
+              <div class="rounded-xl border border-void-500/35 bg-void-950/40 p-4 space-y-2 text-xs text-white/70">
+                <p class="font-bold text-candy-200">📖 如何取得 Discord Webhook 網址？（只需 10 秒）</p>
+                <ol class="list-decimal list-inside space-y-1 leading-relaxed text-white/60">
+                  <li>打開您的 Discord 伺服器，找到想接收訂單通知的文字頻道（例如：<code class="text-white">#訂單通知</code>）。</li>
+                  <li>點擊頻道右側的齒輪圖示 ⚙️【編輯頻道】。</li>
+                  <li>在左邊側邊欄點選【整合】 -> 點擊【Webhook】。</li>
+                  <li>點擊【建立 Webhook】，名稱可自訂為「Mstar 商城訂單」。</li>
+                  <li>點擊【複製 Webhook 網址】，貼到上方的輸入框並點擊【儲存】即可！</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- 彈窗組件 (Modals) -->
+        <!-- ================================================================== -->
+
+        <!-- 彈窗 1: 賣家登入彈窗 (含 30 秒鎖定防護，無預設帳密提示) -->
+        <div v-if="showLoginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div class="panel backdrop-card max-w-md w-full p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-void-500/30 pb-3">
+              <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <span>👤 賣家 / 管理員登入</span>
+              </h3>
+              <button type="button" class="btn btn-ghost btn-sm" @click="showLoginModal = false">✕</button>
+            </div>
+
+            <form @submit.prevent="handleLogin" class="space-y-4">
+              <div>
+                <label class="field font-bold text-white">帳號</label>
+                <input
+                  v-model="loginForm.username"
+                  type="text"
+                  class="input"
+                  placeholder="請輸入使用者帳號"
+                  :disabled="lockRemaining > 0"
+                  required
+                />
+              </div>
+
+              <div>
+                <label class="field font-bold text-white">密碼</label>
+                <input
+                  v-model="loginForm.password"
+                  type="password"
+                  class="input"
+                  placeholder="請輸入密碼"
+                  :disabled="lockRemaining > 0"
+                  required
+                />
+              </div>
+
+              <!-- 密碼打錯鎖定提示 -->
+              <div v-if="lockRemaining > 0" class="rounded-lg bg-[#ff4d6d]/20 border border-[#ff4d6d]/50 p-3 text-xs text-[#ff9fb1] flex items-center gap-2">
+                <span class="text-xl">⏳</span>
+                <div>
+                  <p class="font-bold">密碼連續打錯 3 次，系統已鎖定！</p>
+                  <p>請等待 <span class="font-mono font-bold text-white text-sm">{{ lockRemaining }}</span> 秒後即可重新登入。</p>
+                </div>
+              </div>
+
+              <p v-else-if="loginForm.error" class="rounded-lg bg-[#ff4d6d]/15 px-3 py-2 text-xs text-[#ff9fb1]">
+                {{ loginForm.error }}
+              </p>
+
+              <div class="flex justify-end gap-2 pt-2">
+                <button type="button" class="btn btn-ghost btn-sm" @click="showLoginModal = false">取消</button>
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-sm"
+                  :disabled="loginForm.loading || lockRemaining > 0"
+                >
+                  {{ lockRemaining > 0 ? `鎖定中 (${lockRemaining}s)` : loginForm.loading ? '驗證中…' : '立即登入' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- 彈窗 2: 建立新賣家帳號 (Add User Modal) -->
+        <div v-if="showAddUserModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div class="panel backdrop-card max-w-md w-full p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-void-500/30 pb-2">
+              <h3 class="font-bold text-base text-white">👥 建立新賣家帳號</h3>
+              <button type="button" class="btn btn-ghost btn-sm" @click="showAddUserModal = false">✕</button>
+            </div>
+            <form @submit.prevent="submitAddUser" class="space-y-3">
+              <div>
+                <label class="field">登入帳號 (Username) <span class="text-candy-300">*</span></label>
+                <input v-model="newUserForm.username" class="input" placeholder="例如：mika、seller2" required />
+              </div>
+              <div>
+                <label class="field">登入密碼 (Password) <span class="text-candy-300">*</span></label>
+                <input v-model="newUserForm.password" type="text" class="input" placeholder="例如：123456" required />
+              </div>
+              <div>
+                <label class="field">賣家顯示名稱（上架看到的名字） <span class="text-candy-300">*</span></label>
+                <input v-model="newUserForm.display_name" class="input" placeholder="例如：小花雜貨舖" required />
+              </div>
+              <div>
+                <label class="field">遊戲內角色 ID</label>
+                <input v-model="newUserForm.game_id" class="input" placeholder="買家在遊戲中密語的名字" />
+              </div>
+              <div>
+                <label class="field">Discord 帳號</label>
+                <input v-model="newUserForm.discord_id" class="input" placeholder="例如：candy#1234" />
+              </div>
+              <div>
+                <label class="field">角色身分</label>
+                <select v-model="newUserForm.role" class="input">
+                  <option value="seller">賣家 (Seller)</option>
+                  <option value="admin">管理員 (Admin)</option>
+                </select>
+              </div>
+              <div class="flex justify-end gap-2 pt-2">
+                <button type="button" class="btn btn-ghost btn-sm" @click="showAddUserModal = false">取消</button>
+                <button type="submit" class="btn btn-primary btn-sm">確認建立帳號</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- 彈窗 3: 編輯帳號與修改密碼 (Edit User Modal) -->
+        <div v-if="showEditUserModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div class="panel backdrop-card max-w-md w-full p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-void-500/30 pb-2">
+              <h3 class="font-bold text-base text-white">✏️ 編輯帳號與修改密碼</h3>
+              <button type="button" class="btn btn-ghost btn-sm" @click="showEditUserModal = false">✕</button>
+            </div>
+            <form @submit.prevent="submitEditUser" class="space-y-3">
+              <div>
+                <label class="field text-white/60">登入帳號（不可更動）</label>
+                <input :value="editingUser.username" class="input opacity-60 cursor-not-allowed" disabled />
+              </div>
+              <div>
+                <label class="field">修改登入密碼 <span class="text-candy-300">*</span></label>
+                <input v-model="editingUser.password" type="text" class="input font-mono" placeholder="輸入新密碼" required />
+              </div>
+              <div>
+                <label class="field">賣家顯示名稱 <span class="text-candy-300">*</span></label>
+                <input v-model="editingUser.display_name" class="input" required />
+              </div>
+              <div>
+                <label class="field">遊戲內角色 ID</label>
+                <input v-model="editingUser.game_id" class="input" />
+              </div>
+              <div>
+                <label class="field">Discord 帳號</label>
+                <input v-model="editingUser.discord_id" class="input" />
+              </div>
+              <div>
+                <label class="field">權限身分</label>
+                <select v-model="editingUser.role" class="input">
+                  <option value="seller">賣家 (Seller)</option>
+                  <option value="admin">管理員 (Admin)</option>
+                </select>
+              </div>
+              <div class="flex justify-end gap-2 pt-2">
+                <button type="button" class="btn btn-ghost btn-sm" @click="showEditUserModal = false">取消</button>
+                <button type="submit" class="btn btn-primary btn-sm">儲存更新</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- 彈窗 4: 新增分類標籤 (Add Category Modal) -->
+        <div v-if="showAddCatModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div class="panel backdrop-card max-w-md w-full p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-void-500/30 pb-2">
+              <h3 class="font-bold text-base text-white">🏷️ 新增分類標籤</h3>
+              <button type="button" class="btn btn-ghost btn-sm" @click="showAddCatModal = false">✕</button>
+            </div>
+            <form @submit.prevent="submitAddCategory" class="space-y-3">
+              <div>
+                <label class="field">分類名稱 <span class="text-candy-300">*</span></label>
+                <input v-model="newCatName" class="input" placeholder="例如：露營野餐、寵物專區..." required />
+              </div>
+              <div>
+                <label class="field">分類圖示 Emoji</label>
+                <input v-model="newCatIcon" class="input" placeholder="例如：⛺、🐾、🎀" />
+              </div>
+              <div class="flex justify-end gap-2 pt-2">
+                <button type="button" class="btn btn-ghost btn-sm" @click="showAddCatModal = false">取消</button>
+                <button type="submit" class="btn btn-primary btn-sm">建立分類</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- 彈窗 5: 訂單完成結果畫面 (Order Result Modal) -->
+        <div v-if="showOrderResultModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+          <div class="shell max-w-2xl w-full my-8 space-y-5">
+            <header class="panel backdrop-card relative overflow-hidden p-5">
+              <div class="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-mint-500/20 blur-3xl"></div>
+              <div class="relative space-y-2">
+                <p class="badge badge-active inline-flex">✓ 訂單已成功寫入資料庫</p>
+                <h1 class="font-display text-2xl font-bold">
+                  {{ lastOrders.length > 1 ? `產生了 ${lastOrders.length} 張訂單（依各賣家拆分）` : '訂單已成立' }}
+                </h1>
+                <p class="text-sm text-white/65">
+                  訂單資料已即時保存至 SQLite 資料庫，若賣家已綁定 Discord 亦會同步推播。請分別複製下方資訊發給賣家完成遊戲交易。
+                </p>
+                <div class="flex flex-wrap gap-2 pt-2">
+                  <button v-if="lastOrders.length > 1" type="button" class="btn btn-primary btn-sm" @click="copyAllOrders">
+                    📋 一鍵複製全部訂單文字
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" @click="showOrderResultModal = false; setView('shop')">
+                    關閉並繼續逛商品
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div class="space-y-3">
+              <div v-for="order in lastOrders" :key="order.order_no" class="panel backdrop-card p-4 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-void-600/45 pb-2">
+                  <div>
+                    <span class="badge badge-gold">等賣家處理</span>
+                    <span class="ml-2 font-mono text-sm font-bold text-candy-200">{{ order.order_no }}</span>
+                  </div>
+                  <button type="button" class="btn btn-mint btn-sm" @click="copySingleOrder(order)">
+                    複製此訂單
+                  </button>
+                </div>
+
+                <div>
+                  <p class="text-xs text-white/50">負責賣家：<span class="font-bold text-white">{{ order.seller_name }}</span></p>
+                </div>
+
+                <ul class="space-y-1 text-xs text-white/80 border-t border-void-600/30 pt-2">
+                  <li v-for="(it, i) in order.items" :key="i" class="flex justify-between">
+                    <span>{{ it.product_title }} {{ it.variant_name ? `(${it.variant_name})` : '' }} × {{ it.quantity }}</span>
+                    <span class="font-bold text-candy-200">{{ formatNumber(it.subtotal_candy) }} 顆</span>
+                  </li>
+                </ul>
+
+                <div class="flex justify-between border-t border-void-600/45 pt-2 text-sm font-bold">
+                  <span>合計 {{ order.total_quantity }} 件</span>
+                  <span class="text-candy-200">{{ formatNumber(order.total_candy) }} 顆糖果</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- 頁尾 (Footer) -->
+      <footer class="border-t border-void-500/30 bg-void-950/70 py-7">
+        <div class="shell flex flex-col items-center gap-2 text-center">
+          <p class="text-sm font-semibold text-white/70">
+            Mstar 糖果商城 · 傢俱展示與上架交流平台
+          </p>
+          <p class="max-w-xl text-xs leading-relaxed text-white/45">
+            本站<strong class="text-candy-300">不涉及任何金流</strong>，僅提供展示與拆單聯絡。所有交易都在遊戲內以糖果進行。
+          </p>
+          <p class="text-[11px] text-white/30">支援原生 SQLite 資料庫、多賣家帳號管理、密碼防護與 Discord Webhook 即時通知</p>
+        </div>
+      </footer>
+    </div>
+
+    <!-- 載入 Vue 3 本地執行環境與應用邏輯 -->
+    <script src="assets/vue.global.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
