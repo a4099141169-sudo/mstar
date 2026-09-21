@@ -325,16 +325,28 @@ const server = http.createServer(async (req, res) => {
       }
 
       const extMatch = base64.match(/^data:image\/([a-zA-Z0-9\+\-]+);base64,/);
-      let ext = '.png';
-      let pureBase64 = base64;
-      if (extMatch) {
-        ext = '.' + (extMatch[1] === 'jpeg' ? 'jpg' : extMatch[1]);
-        pureBase64 = base64.replace(/^data:image\/[a-zA-Z0-9\+\-]+;base64,/, '');
+      if (!extMatch) {
+        return sendJson(res, 400, { error: '無效的圖片資料格式' });
+      }
+
+      const mimeSubtype = extMatch[1].toLowerCase();
+      const allowedSubtypes = new Set(['png', 'jpeg', 'jpg', 'webp', 'gif']);
+      if (!allowedSubtypes.has(mimeSubtype)) {
+        return sendJson(res, 400, { error: '不支援的圖片格式，請使用 PNG、JPG、WebP 或 GIF' });
+      }
+
+      const ext = mimeSubtype === 'jpeg' ? '.jpg' : '.' + mimeSubtype;
+      const pureBase64 = base64.replace(/^data:image\/[a-zA-Z0-9\+\-]+;base64,/, '');
+      const imageBuffer = Buffer.from(pureBase64, 'base64');
+
+      // 前端已先壓縮；伺服器仍保留 10MB 成品上限，避免異常大檔直接落盤。
+      if (imageBuffer.length > 10 * 1024 * 1024) {
+        return sendJson(res, 413, { error: '圖片檔案過大，請重新選擇圖片' });
       }
 
       const randomName = 'img_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + ext;
       const destPath = path.join(UPLOADS_DIR, randomName);
-      fs.writeFileSync(destPath, Buffer.from(pureBase64, 'base64'));
+      fs.writeFileSync(destPath, imageBuffer);
 
       return sendJson(res, 200, {
         success: true,
