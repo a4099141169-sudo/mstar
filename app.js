@@ -635,40 +635,101 @@ createApp({
       }
     }, { immediate: true });
 
+    function readImageAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('讀取圖片失敗'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // 商品卡片是響應式正方形圖片；上傳前先縮到 800px 以內並轉成 WebP，
+    // 讓手機截圖／桌面截圖也不會把原始大圖直接塞進伺服器。
+    function compressProductImage(file, maxSize = 800, quality = 0.82) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const img = new Image();
+
+          img.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(img.naturalWidth, img.naturalHeight));
+            const width = Math.max(1, Math.round(img.naturalWidth * scale));
+            const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('瀏覽器無法處理圖片'));
+              return;
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressed = canvas.toDataURL('image/webp', quality);
+            resolve(compressed);
+          };
+
+          img.onerror = () => reject(new Error('圖片格式無法讀取'));
+          img.src = reader.result;
+        };
+
+        reader.onerror = () => reject(new Error('讀取圖片失敗'));
+        reader.readAsDataURL(file);
+      });
+    }
+
     async function handleImageFileChange(e) {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        imagePreview.value = event.target.result;
-      };
-      reader.readAsDataURL(file);
+      if (!file.type.startsWith('image/')) {
+        toast.error('請選擇圖片檔案');
+        e.target.value = '';
+        return;
+      }
 
       isUploadingImage.value = true;
+
       try {
-        const base64Reader = new FileReader();
-        base64Reader.readAsDataURL(file);
-        base64Reader.onload = async () => {
-          const res = await fetch('/api/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename: file.name,
-              base64: base64Reader.result
-            })
-          });
-          const data = await res.json();
-          if (res.ok && data.url) {
-            newProduct.thumb_url = data.url;
-            toast.success('圖片上傳成功！');
-          } else {
-            toast.error(data.error || '圖片上傳失敗');
-          }
-          isUploadingImage.value = false;
-        };
+        const compressedBase64 = await compressProductImage(file);
+
+        // 預覽直接使用壓縮後的版本，確保看到的就是實際上傳圖片。
+        imagePreview.value = compressedBase64;
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name.replace(/\.[^.]+$/, '') + '.webp',
+            base64: compressedBase64
+          })
+        });
+
+        const contentType = res.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+          ? await res.json()
+          : { error: await res.text() };
+
+        if (!res.ok) {
+          throw new Error(data.error || `圖片上傳失敗（HTTP ${res.status}）`);
+        }
+
+        if (!data.url) {
+          throw new Error('伺服器沒有回傳圖片網址');
+        }
+
+        newProduct.thumb_url = data.url;
+        toast.success('圖片已自動壓縮並上傳成功！');
       } catch (err) {
-        toast.error('上傳出錯: ' + err.message);
+        imagePreview.value = '';
+        newProduct.thumb_url = '';
+        toast.error('圖片上傳失敗：' + (err?.message || '未知錯誤'));
+      } finally {
         isUploadingImage.value = false;
       }
     }
